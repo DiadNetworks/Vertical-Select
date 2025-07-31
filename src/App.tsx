@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Copy, Trash2, Info } from 'lucide-react';
+import { Copy, Trash2, Info, Search } from 'lucide-react';
 import { cn } from './lib/utils';
+import FindReplace from './components/FindReplace';
 
 interface Position {
   row: number;
@@ -36,6 +37,7 @@ export default function App() {
   });
   const [selectionInfo, setSelectionInfo] = useState('No selection');
   const [showCopied, setShowCopied] = useState(false);
+  const [showFindReplace, setShowFindReplace] = useState(false);
 
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -315,6 +317,13 @@ export default function App() {
         <div className="mb-6 overflow-hidden rounded-xl bg-white shadow-lg flex-1 flex flex-col">
           <div className="flex justify-end border-b border-gray-100 p-3">
             <button
+              onClick={() => setShowFindReplace(true)}
+              className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 mr-3"
+            >
+              <Search size={16} />
+              Find & Replace
+            </button>
+            <button
               onClick={loadDemoText}
               className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
             >
@@ -378,6 +387,13 @@ export default function App() {
           <Info size={16} className="text-blue-500" />
           <p>{status}</p>
         </div>
+
+        <FindReplace
+          text={text}
+          onTextChange={setText}
+          isOpen={showFindReplace}
+          onClose={() => setShowFindReplace(false)}
+        />
       </div>
     </div>
   );
