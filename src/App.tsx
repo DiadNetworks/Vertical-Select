@@ -318,24 +318,10 @@ export default function App() {
           <div className="flex justify-end border-b border-gray-100 p-3">
             <button
               onClick={() => setShowFindReplace(true)}
-              className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 mr-3"
-            >
-              <Search size={16} />
-              Find & Replace
-            </button>
-            <button
-              onClick={() => setShowFindReplace(true)}
-              className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 mr-3"
-            >
-              <Search size={16} />
-              Find & Replace
-            </button>
-            <button
-              onClick={loadDemoText}
               className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
             >
-              <Info size={16} />
-              Demo Text
+              <Search size={16} />
+              Find & Replace
             </button>
           </div>
 
