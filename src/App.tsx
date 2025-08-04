@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Copy, Trash2, Info } from 'lucide-react';
+import { Copy, Trash2, Info, Search } from 'lucide-react';
 import { cn } from './lib/utils';
 
 interface Position {
