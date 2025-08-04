@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Copy, Trash2, Info, Search } from 'lucide-react';
 import { cn } from './lib/utils';
+import FindReplace from './components/FindReplace';
 
 interface Position {
   row: number;
@@ -36,6 +37,7 @@ export default function App() {
   });
   const [selectionInfo, setSelectionInfo] = useState('No selection');
   const [showCopied, setShowCopied] = useState(false);
+  const [showFindReplace, setShowFindReplace] = useState(false);
 
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -296,6 +298,15 @@ export default function App() {
     }
   };
 
+  const handleFindReplace = () => {
+    setShowFindReplace(true);
+  };
+
+  const handleReplace = (newText: string) => {
+    setText(newText);
+    setStatus('Find & Replace completed successfully.');
+  };
+
   const handleScroll = () => {
     if (textAreaRef.current && overlayRef.current) {
       overlayRef.current.style.transform = `translate(-${textAreaRef.current.scrollLeft}px, -${textAreaRef.current.scrollTop}px)`;
@@ -313,7 +324,7 @@ export default function App() {
         </header>
 
         <div className="mb-6 overflow-hidden rounded-xl bg-white shadow-lg flex-1 flex flex-col">
-          <div className="flex justify-end border-b border-gray-100 p-3">
+          <div className="flex justify-between border-b border-gray-100 p-3">
             <button
               onClick={loadDemoText}
               className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
@@ -354,7 +365,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="mb-6 flex justify-end gap-3">
+        <div className="mb-6 flex justify-between gap-3">
           <button
             onClick={handleClear}
             className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:text-red-600 hover:border-red-200 active:scale-95"
