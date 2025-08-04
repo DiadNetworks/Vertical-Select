@@ -1,0 +1,419 @@
+[1mdiff --git a/src/App.tsx b/src/App.tsx[m
+[1mindex 220bf0c..701e790 100644[m
+[1m--- a/src/App.tsx[m
+[1m+++ b/src/App.tsx[m
+[36m@@ -1,5 +1,5 @@[m
+ import { useState, useRef, useEffect } from 'react';[m
+[31m-import { Copy, Trash2, Info } from 'lucide-react';[m
+[32m+[m[32mimport { Copy, Trash2, Info, Search } from 'lucide-react';[m
+ import { cn } from './lib/utils';[m
+ [m
+ interface Position {[m
+[36m@@ -381,4 +381,4 @@[m [mexport default function App() {[m
+       </div>[m
+     </div>[m
+   );[m
+[31m-}[m
+\ No newline at end of file[m
+[32m+[m[32m}[m
+[1mdiff --git a/src/components/FindReplace.tsx b/src/components/FindReplace.tsx[m
+[1mnew file mode 100644[m
+[1mindex 0000000..090b29d[m
+[1m--- /dev/null[m
+[1m+++ b/src/components/FindReplace.tsx[m
+[36m@@ -0,0 +1,696 @@[m
+[32m+[m[32mimport React, { useState, useEffect, useRef, useCallback } from "react";[m
+[32m+[m[32mimport { Search, Replace, Settings, History, Save, Load, Undo, Redo, X, ChevronDown, ChevronUp, Target, FileText, BarChart3, Lightbulb, BookOpen } from "lucide-react";[m
+[32m+[m
+[32m+[m[32minterface FindReplaceProps {[m
+[32m+[m[32m  text: string;[m
+[32m+[m[32m  onReplace: (newText: string) => void;[m
+[32m+[m[32m  onClose: () => void;[m
+[32m+[m[32m  isOpen: boolean;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32minterface ReplacementHistory {[m
+[32m+[m[32m  id: string;[m
+[32m+[m[32m  timestamp: Date;[m
+[32m+[m[32m  findText: string;[m
+[32m+[m[32m  replaceText: string;[m
+[32m+[m[32m  options: FindReplaceOptions;[m
+[32m+[m[32m  matchCount: number;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32minterface FindReplaceOptions {[m
+[32m+[m[32m  caseSensitive: boolean;[m
+[32m+[m[32m  wholeWord: boolean;[m
+[32m+[m[32m  useRegex: boolean;[m
+[32m+[m[32m  replaceFirstOnly: boolean;[m
+[32m+[m[32m  preserveCase: boolean;[m
+[32m+[m[32m  lineRange: { start: number; end: number } | null;[m
+[32m+[m[32m  contextAware: boolean;[m
+[32m+[m[32m  conditionalReplace: boolean;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32minterface Match {[m
+[32m+[m[32m  start: number;[m
+[32m+[m[32m  end: number;[m
+[32m+[m[32m  text: string;[m
+[32m+[m[32m  line: number;[m
+[32m+[m[32m  context: string;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32minterface BatchReplacement {[m
+[32m+[m[32m  find: string;[m
+[32m+[m[32m  replace: string;[m
+[32m+[m[32m  enabled: boolean;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mconst FindReplace: React.FC<FindReplaceProps> = ({ text, onReplace, onClose, isOpen }) => {[m
+[32m+[m[32m  const [findText, setFindText] = useState("");[m
+[32m+[m[32m  const [replaceText, setReplaceText] = useState("");[m
+[32m+[m[32m  const [options, setOptions] = useState<FindReplaceOptions>({[m
+[32m+[m[32m    caseSensitive: false,[m
+[32m+[m[32m    wholeWord: false,[m
+[32m+[m[32m    useRegex: false,[m
+[32m+[m[32m    replaceFirstOnly: false,[m
+[32m+[m[32m    preserveCase: false,[m
+[32m+[m[32m    lineRange: null,[m
+[32m+[m[32m    contextAware: false,[m
+[32m+[m[32m    conditionalReplace: false,[m
+[32m+[m[32m  });[m
+[32m+[m[41m  [m
+[32m+[m[32m  const [matches, setMatches] = useState<Match[]>([]);[m
+[32m+[m[32m  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);[m
+[32m+[m[32m  const [history, setHistory] = useState<ReplacementHistory[]>([]);[m
+[32m+[m[32m  const [showAdvanced, setShowAdvanced] = useState(false);[m
+[32m+[m[32m  const [showBatch, setShowBatch] = useState(false);[m
+[32m+[m[32m  const [batchReplacements, setBatchReplacements] = useState<BatchReplacement[]>([[m
+[32m+[m[32m    { find: "", replace: "", enabled: true }[m
+[32m+[m[32m  ]);[m
+[32m+[m[32m  const [savedPatterns, setSavedPatterns] = useState<Array<{name: string, pattern: BatchReplacement[]}>>([]);[m
+[32m+[m[32m  const [previewMode, setPreviewMode] = useState(false);[m
+[32m+[m[32m  const [previewText, setPreviewText] = useState("");[m
+[32m+[m[32m  const [statistics, setStatistics] = useState({[m
+[32m+[m[32m    totalReplacements: 0,[m
+[32m+[m[32m    totalMatches: 0,[m
+[32m+[m[32m    patternsUsed: 0,[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  const findInputRef = useRef<HTMLInputElement>(null);[m
+[32m+[m[32m  const replaceInputRef = useRef<HTMLInputElement>(null);[m
+[32m+[m
+[32m+[m[32m  // Find all matches[m
+[32m+[m[32m  const findMatches = useCallback(() => {[m
+[32m+[m[32m    if (!findText) {[m
+[32m+[m[32m      setMatches([]);[m
+[32m+[m[32m      return;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    const lines = text.split("\n");[m
+[32m+[m[32m    const newMatches: Match[] = [];[m
+[32m+[m[32m    let globalIndex = 0;[m
+[32m+[m
+[32m+[m[32m    lines.forEach((line, lineIndex) => {[m
+[32m+[m[32m      if (options.lineRange && (lineIndex < options.lineRange.start || lineIndex > options.lineRange.end)) {[m
+[32m+[m[32m        globalIndex += line.length + 1;[m
+[32m+[m[32m        return;[m
+[32m+[m[32m      }[m
+[32m+[m
+[32m+[m[32m      let searchText = line;[m
+[32m+[m[32m      let searchPattern = findText;[m
+[32m+[m
+[32m+[m[32m      if (!options.caseSensitive) {[m
+[32m+[m[32m        searchText = line.toLowerCase();[m
+[32m+[m[32m        searchPattern = findText.toLowerCase();[m
+[32m+[m[32m      }[m
+[32m+[m
+[32m+[m[32m      if (options.useRegex) {[m
+[32m+[m[32m        try {[m
+[32m+[m[32m          const flags = options.caseSensitive ? "g" : "gi";[m
+[32m+[m[32m          const regex = new RegExp(searchPattern, flags);[m
+[32m+[m[32m          let match;[m
+[32m+[m[41m          [m
+[32m+[m[32m          while ((match = regex.exec(line)) !== null) {[m
+[32m+[m[32m            if (options.wholeWord) {[m
+[32m+[m[32m              const before = line[match.index - 1] || "";[m
+[32m+[m[32m              const after = line[match.index + match[0].length] || "";[m
+[32m+[m[32m              if (/[a-zA-Z0-9]/.test(before) || /[a-zA-Z0-9]/.test(after)) {[m
+[32m+[m[32m                continue;[m
+[32m+[m[32m              }[m
+[32m+[m[32m            }[m
+[32m+[m
+[32m+[m[32m            const contextStart = Math.max(0, match.index - 20);[m
+[32m+[m[32m            const contextEnd = Math.min(line.length, match.index + match[0].length + 20);[m
+[32m+[m[32m            const context = line.slice(contextStart, contextEnd);[m
+[32m+[m
+[32m+[m[32m            newMatches.push({[m
+[32m+[m[32m              start: globalIndex + match.index,[m
+[32m+[m[32m              end: globalIndex + match.index + match[0].length,[m
+[32m+[m[32m              text: match[0],[m
+[32m+[m[32m              line: lineIndex + 1,[m
+[32m+[m[32m              context: contextStart > 0 ? "..." + context : context + (contextEnd < line.length ? "..." : ""),[m
+[32m+[m[32m            });[m
+[32m+[m[32m          }[m
+[32m+[m[32m        } catch (error) {[m
+[32m+[m[32m          console.error("Invalid regex pattern:", error);[m
+[32m+[m[32m        }[m
+[32m+[m[32m      } else {[m
+[32m+[m[32m        let index = 0;[m
+[32m+[m[32m        while ((index = searchText.indexOf(searchPattern, index)) !== -1) {[m
+[32m+[m[32m          if (options.wholeWord) {[m
+[32m+[m[32m            const before = line[index - 1] || "";[m
+[32m+[m[32m            const after = line[index + searchPattern.length] || "";[m
+[32m+[m[32m            if (/[a-zA-Z0-9]/.test(before) || /[a-zA-Z0-9]/.test(after)) {[m
+[32m+[m[32m              index += 1;[m
+[32m+[m[32m              continue;[m
+[32m+[m[32m            }[m
+[32m+[m[32m          }[m
+[32m+[m
+[32m+[m[32m          const contextStart = Math.max(0, index - 20);[m
+[32m+[m[32m          const contextEnd = Math.min(line.length, index + searchPattern.length + 20);[m
+[32m+[m[32m          const context = line.slice(contextStart, contextEnd);[m
+[32m+[m
+[32m+[m[32m          newMatches.push({[m
+[32m+[m[32m            start: globalIndex + index,[m
+[32m+[m[32m            end: globalIndex + index + searchPattern.length,[m
+[32m+[m[32m            text: line.slice(index, index + searchPattern.length),[m
+[32m+[m[32m            line: lineIndex + 1,[m
+[32m+[m[32m            context: contextStart > 0 ? "..." + context : context + (contextEnd < line.length ? "..." : ""),[m
+[32m+[m[32m          });[m
+[32m+[m
+[32m+[m[32m          index += 1;[m
+[32m+[m[32m        }[m
+[32m+[m[32m      }[m
+[32m+[m
+[32m+[m[32m      globalIndex += line.length + 1;[m
+[32m+[m[32m    });[m
+[32m+[m
+[32m+[m[32m    setMatches(newMatches);[m
+[32m+[m[32m    setCurrentMatchIndex(newMatches.length > 0 ? 0 : -1);[m
+[32m+[m[32m  }, [findText, text, options]);[m
+[32m+[m
+[32m+[m[32m  // Replace text with smart case preservation[m
+[32m+[m[32m  const replaceWithCasePreservation = (original: string, replacement: string): string => {[m
+[32m+[m[32m    if (!options.preserveCase) return replacement;[m
+[32m+[m
+[32m+[m[32m    if (original === original.toUpperCase()) {[m
+[32m+[m[32m      return replacement.toUpperCase();[m
+[32m+[m[32m    } else if (original === original.toLowerCase()) {[m
+[32m+[m[32m      return replacement.toLowerCase();[m
+[32m+[m[32m    } else if (original[0] === original[0]?.toUpperCase() && original.slice(1) === original.slice(1).toLowerCase()) {[m
+[32m+[m[32m      return replacement.charAt(0).toUpperCase() + replacement.slice(1).toLowerCase();[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    return replacement;[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  // Perform replacement[m
+[32m+[m[32m  const performReplace = (replaceAll: boolean = false) => {[m
+[32m+[m[32m    if (matches.length === 0) return;[m
+[32m+[m
+[32m+[m[32m    let newText = text;[m
+[32m+[m[32m    let replacements = 0;[m
+[32m+[m[32m    const replacementsToMake = replaceAll ? matches : [matches[currentMatchIndex]];[m
+[32m+[m
+[32m+[m[32m    // Sort in reverse order to maintain indices[m
+[32m+[m[32m    const sortedReplacements = [...replacementsToMake].sort((a, b) => b.start - a.start);[m
+[32m+[m
+[32m+[m[32m    sortedReplacements.forEach(match => {[m
+[32m+[m[32m      const before = newText.slice(0, match.start);[m
+[32m+[m[32m      const after = newText.slice(match.end);[m
+[32m+[m[32m      const replacement = replaceWithCasePreservation(match.text, replaceText);[m
+[32m+[m[41m      [m
+[32m+[m[32m      newText = before + replacement + after;[m
+[32m+[m[32m      replacements++;[m
+[32m+[m[32m    });[m
+[32m+[m
+[32m+[m[32m    // Update statistics[m
+[32m+[m[32m    setStatistics(prev => ({[m
+[32m+[m[32m      ...prev,[m
+[32m+[m[32m      totalReplacements: prev.totalReplacements + replacements,[m
+[32m+[m[32m      totalMatches: prev.totalMatches + matches.length,[m
+[32m+[m[32m    }));[m
+[32m+[m
+[32m+[m[32m    // Add to history[m
+[32m+[m[32m    const historyEntry: ReplacementHistory = {[m
+[32m+[m[32m      id: Date.now().toString(),[m
+[32m+[m[32m      timestamp: new Date(),[m
+[32m+[m[32m      findText,[m
+[32m+[m[32m      replaceText,[m
+[32m+[m[32m      options: { ...options },[m
+[32m+[m[32m      matchCount: matches.length,[m
+[32m+[m[32m    };[m
+[32m+[m[32m    setHistory(prev => [historyEntry, ...prev.slice(0, 9)]);[m
+[32m+[m
+[32m+[m[32m    onReplace(newText);[m
+[32m+[m[32m    setMatches([]);[m
+[32m+[m[32m    setCurrentMatchIndex(-1);[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  // Batch replacements[m
+[32m+[m[32m  const performBatchReplace = () => {[m
+[32m+[m[32m    let newText = text;[m
+[32m+[m[32m    let totalReplacements = 0;[m
+[32m+[m
+[32m+[m[32m    batchReplacements[m
+[32m+[m[32m      .filter(item => item.enabled && item.find)[m
+[32m+[m[32m      .forEach(item => {[m
+[32m+[m[32m        const regex = new RegExp([m
+[32m+[m[32m          options.wholeWord ? `\\b${item.find}\\b` : item.find,[m
+[32m+[m[32m          options.caseSensitive ? "g" : "gi"[m
+[32m+[m[32m        );[m
+[32m+[m[32m        const matches = newText.match(regex);[m
+[32m+[m[32m        if (matches) {[m
+[32m+[m[32m          newText = newText.replace(regex, item.replace);[m
+[32m+[m[32m          totalReplacements += matches.length;[m
+[32m+[m[32m        }[m
+[32m+[m[32m      });[m
+[32m+[m
+[32m+[m[32m    setStatistics(prev => ({[m
+[32m+[m[32m      ...prev,[m
+[32m+[m[32m      totalReplacements: prev.totalReplacements + totalReplacements,[m
+[32m+[m[32m      patternsUsed: prev.patternsUsed + 1,[m
+[32m+[m[32m    }));[m
+[32m+[m
+[32m+[m[32m    onReplace(newText);[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  // Preview replacements[m
+[32m+[m[32m  const generatePreview = () => {[m
+[32m+[m[32m    if (matches.length === 0) {[m
+[32m+[m[32m      setPreviewText(text);[m
+[32m+[m[32m      return;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    let preview = text;[m
+[32m+[m[32m    const sortedMatches = [...matches].sort((a, b) => b.start - a.start);[m
+[32m+[m
+[32m+[m[32m    sortedMatches.forEach(match => {[m
+[32m+[m[32m      const before = preview.slice(0, match.start);[m
+[32m+[m[32m      const after = preview.slice(match.end);[m
+[32m+[m[32m      const replacement = replaceWithCasePreservation(match.text, replaceText);[m
+[32m+[m[41m      [m
+[32m+[m[32m      preview = before + `<mark class="bg-yellow-200">${replacement}</mark>` + after;[m
+[32m+[m[32m    });[m
+[32m+[m
+[32m+[m[32m    setPreviewText(preview);[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  // Auto-suggestions based on text content[m
+[32m+[m[32m  const generateSuggestions = () => {[m
+[32m+[m[32m    const words = text.toLowerCase().match(/\\b\\w+\\b/g) || [];[m
+[32m+[m[32m    const wordCount = words.reduce((acc, word) => {[m
+[32m+[m[32m      acc[word] = (acc[word] || 0) + 1;[m
+[32m+[m[32m      return acc;[m
+[32m+[m[32m    }, {} as Record<string, number>);[m
+[32m+[m
+[32m+[m[32m    const suggestions = Object.entries(wordCount)[m
+[32m+[m[32m      .filter(([word, count]) => count > 1 && word.length > 3)[m
+[32m+[m[32m      .sort(([, a], [, b]) => b - a)[m
+[32m+[m[32m      .slice(0, 5)[m
+[32m+[m[32m      .map(([word]) => word);[m
+[32m+[m
+[32m+[m[32m    return suggestions;[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  // Effects[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    if (isOpen && findInputRef.current) {[m
+[32m+[m[32m      findInputRef.current.focus();[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }, [isOpen]);[m
+[32m+[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    findMatches();[m
+[32m+[m[32m  }, [findMatches]);[m
+[32m+[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    if (previewMode) {[m
+[32m+[m[32m      generatePreview();[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }, [previewMode, matches, replaceText]);[m
+[32m+[m
+[32m+[m[32m  if (!isOpen) return null;[m
+[32m+[m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">[m
+[32m+[m[32m      <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-lg shadow-2xl overflow-hidden">[m
+[32m+[m[32m        {/* Header */}[m
+[32m+[m[32m        <div className="flex items-center justify-between p-4 border-b bg-gray-50">[m
+[32m+[m[32m          <div className="flex items-center gap-3">[m
+[32m+[m[32m            <Search className="text-blue-500" size={20} />[m
+[32m+[m[32m            <h2 className="text-lg font-semibold text-gray-800">Find & Replace</h2>[m
+[32m+[m[32m            <div className="flex items-center gap-2 text-sm text-gray-600">[m
+[32m+[m[32m              <span>{matches.length} matches found</span>[m
+[32m+[m[32m              {currentMatchIndex >= 0 && ([m
+[32m+[m[32m                <span className="text-blue-600">[m
+[32m+[m[32m                  ({currentMatchIndex + 1} of {matches.length})[m
+[32m+[m[32m                </span>[m
+[32m+[m[32m              )}[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m          <button[m
+[32m+[m[32m            onClick={onClose}[m
+[32m+[m[32m            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"[m
+[32m+[m[32m          >[m
+[32m+[m[32m            <X size={20} />[m
+[32m+[m[32m          </button>[m
+[32m+[m[32m        </div>[m
+[32m+[m
+[32m+[m[32m        <div className="flex h-[calc(90vh-80px)]">[m
+[32m+[m[32m          {/* Main Panel */}[m
+[32m+[m[32m          <div className="flex-1 p-4 overflow-y-auto">[m
+[32m+[m[32m            {/* Basic Find/Replace */}[m
+[32m+[m[32m            <div className="space-y-4">[m
+[32m+[m[32m              <div className="grid grid-cols-2 gap-4">[m
+[32m+[m[32m                <div>[m
+[32m+[m[32m                  <label className="block text-sm font-medium text-gray-700 mb-2">[m
+[32m+[m[32m                    Find[m
+[32m+[m[32m                  </label>[m
+[32m+[m[32m                  <div className="relative">[m
+[32m+[m[32m                    <input[m
+[32m+[m[32m                      ref={findInputRef}[m
+[32m+[m[32m                      type="text"[m
+[32m+[m[32m                      value={findText}[m
+[32m+[m[32m                      onChange={(e) => setFindText(e.target.value)}[m
+[32m+[m[32m                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"[m
+[32m+[m[32m                      placeholder="Enter text to find..."[m
+[32m+[m[32m                    />[m
+[32m+[m[32m                    {findText && ([m
+[32m+[m[32m                      <button[m
+[32m+[m[32m                        onClick={() => setFindText("")}[m
+[32m+[m[32m                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"[m
+[32m+[m[32m                      >[m
+[32m+[m[32m                        <X size={16} />[m
+[32m+[m[32m                      </button>[m
+[32m+[m[32m                    )}[m
+[32m+[m[32m                  </div>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m                <div>[m
+[32m+[m[32m                  <label className="block text-sm font-medium text-gray-700 mb-2">[m
+[32m+[m[32m                    Replace with[m
+[32m+[m[32m                  </label>[m
+[32m+[m[32m                  <input[m
+[32m+[m[32m                    ref={replaceInputRef}[m
+[32m+[m[32m                    type="text"[m
+[32m+[m[32m                    value={replaceText}[m
+[32m+[m[32m                    onChange={(e) => setReplaceText(e.target.value)}[m
+[32m+[m[32m                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"[m
+[32m+[m[32m                    placeholder="Enter replacement text..."[m
+[32m+[m[32m                  />[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m              </div>[m
+[32m+[m
+[32m+[m[32m              {/* Quick Actions */}[m
+[32m+[m[32m              <div className="flex items-center gap-2">[m
+[32m+[m[32m                <button[m
+[32m+[m[32m                  onClick={() => performReplace(false)}[m
+[32m+[m[32m                  disabled={matches.length === 0}[m
+[32m+[m[32m                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"[m
+[32m+[m[32m                >[m
+[32m+[m[32m                  <Replace size={16} />[m
+[32m+[m[32m                  Replace[m
+[32m+[m[32m                </button>[m
+[32m+[m[32m                <button[m
+[32m+[m[32m                  onClick={() => performReplace(true)}[m
+[32m+[m[32m                  disabled={matches.length === 0}[m
+[32m+[m[32m                  className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"[m
+[32m+[m[32m       
